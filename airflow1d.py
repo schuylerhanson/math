@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg import svds
+from scipy import linalg
 import numpy.linalg as la
 
 def grid(Lx, Nx):
@@ -45,14 +46,20 @@ def matrix_setup(x, Nx, Q_in, Q_out, BC=False):
             A[i, i+1] = 1
     
     if BC:
-        A[0, 0] = .5
-        A[0, 1] = -.6
-        A[-1, -2] = -.7
-        A[-1, -1] = .6
+        # Dirichlet pin for now
+        A[0, 0] = 1
+        A[0, 1] = 0
+        b[0] = 1
+        A[-1, -1] = 1
+        A[-1, -2] = 0
+        b[-1] = 1
     return A, b
 
-def solver(A, b):
-    return spsolve(A, b)
+def solver(A, b, pinv=False):
+    if pinv:
+        return la.pinv(A)@b
+    else:
+        return spsolve(A, b)
 
 def velocity_field(phi, Nx, dx, BC=False):
     u = np.zeros(Nx)
@@ -65,7 +72,7 @@ def velocity_field(phi, Nx, dx, BC=False):
 
 
 Lx = 5
-Nx = 10
+Nx = 100
 Q_in = 1
 Q_out = 1
 x, dx = grid(Lx, Nx)
@@ -74,10 +81,16 @@ x_s, i_s, x_k, i_k = sources(x, 1, -1)
 A, b = matrix_setup(x, Nx, Q_in, Q_out, BC=True)
 phi = solver(A, b)
 u = velocity_field(phi, Nx, dx, BC=True)
+print('phi:', phi, '\n')
+print('u:', u, '\n')
 
 print("A:", A, '\n')
 
 rank = la.matrix_rank(A)
-print("rank:", rank, " / ", A.shape[0])
+#print(rank)
 
-print('u(x):', u)
+u, s, vt = linalg.svd(A, full_matrices=False)
+eps = np.finfo(float).eps
+tol = max(A.shape) * s[0] * eps
+rank = np.count_nonzero(s > tol)
+print(f"Numerical rank = {rank}")
